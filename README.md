@@ -35,11 +35,11 @@ settings.js is the display settings panel (cell size, toggles, etc.)
 socketClient.js sets up the socket connection and renders the leaderboard
 lobby.js handles the create/join room screens
 placement.js is the fleet placement screen, including the board-resize flow
-game.js is the actual battle screen — firing, game over, rematch
+game.js is the actual battle screen which are firing, game over, rematch
 main.js just does app init
 
-docs/teams-integration.md has some notes on a possible future feature for matching players via Teams.
-test/ has a handful of scripts that exercise the game logic end to end without needing a browser — a full game + rematch + leaderboard check (unit-flow.js), an 8x8 board game (board-dim-test.js), a check that the smallest allowed board still fits every ship (small-board-test.js), and the board-size propose/accept/decline flow (board-confirm-test.js).
+docs/teams-integration.md has some notes on a possible future feature for matching players via Teams
+added some tests also (rip)
 
 ## Tests
 
