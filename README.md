@@ -16,43 +16,30 @@ the room code with someone else) to play a match.
 
 ## Project structure
 
-```
-server/
-  index.js              # entrypoint: wires everything together, starts the HTTP/socket server
-  src/
-    constants.js         # ships, board size limits, timeouts
-    validation.js        # input sanitizing/validation helpers
-    leaderboard.js        # leaderboard, aggregated by player name
-    roomManager.js        # in-memory room store + lifecycle helpers
-    roomCloser.js         # shared "delete room + notify players" helper
-    handlers/
-      roomLifecycle.js     # create_room, join_room, set_board_dim, disconnect
-      gameplay.js          # place_ships, fire, request_rematch
+The server lives in server/. index.js is the entrypoint; it just wires everything together and starts the HTTP/socket server, but doesn't contain any game logic itself. The actual logic is split up in server/src/:
 
-public/
-  index.html             # page markup
-  css/styles.css          # all styling
-  js/
-    config.js             # static config (airport codes, board size options)
-    state.js              # shared client-side state
-    utils.js              # DOM/formatting helpers
-    grid.js               # board rendering
-    settings.js           # display settings panel
-    socketClient.js        # socket connection + leaderboard rendering
-    lobby.js              # create/join room screens
-    placement.js          # fleet placement screen + board resizing
-    game.js               # battle screen, firing, game over, rematch
-    main.js               # app init
+constants.js has the ship list, board size limits, and timeout values
+validation.js sanitizes and validates anything coming in from clients
+leaderboard.js tracks wins/losses/accuracy, aggregated by player name
+roomManager.js is the in-memory store for active game rooms
+roomCloser.js is a small shared helper for deleting a room and notifying both players when it happens
+handlers/roomLifecycle.js handles creating/joining rooms, the board-size propose/confirm handshake, and disconnects
+handlers/gameplay.js handles ship placement, firing, and rematches
 
-docs/
-  teams-integration.md   # notes on a possible Teams-based random match feature
+The front end lives in public/. index.html is just the page markup, styles are in css/styles.css, and the JavaScript is split into one file per concern under js/:
 
-test/
-  unit-flow.js           # full game flow + leaderboard aggregation test
-  board-dim-test.js      # 8x8 board validation test
-  small-board-test.js    # minimum board size (6x6) fits all ships
-  board-confirm-test.js  # board-size propose/accept/decline handshake test
-```
+config.js and state.js hold static config (airport codes, board size limits) and the shared client-side state
+utils.js has small DOM/formatting helpers used everywhere
+grid.js renders the board
+settings.js is the display settings panel (cell size, toggles, etc.)
+socketClient.js sets up the socket connection and renders the leaderboard
+lobby.js handles the create/join room screens
+placement.js is the fleet placement screen, including the board-resize flow
+game.js is the actual battle screen — firing, game over, rematch
+main.js just does app init
+
+docs/teams-integration.md has some notes on a possible future feature for matching players via Teams.
+test/ has a handful of scripts that exercise the game logic end to end without needing a browser — a full game + rematch + leaderboard check (unit-flow.js), an 8x8 board game (board-dim-test.js), a check that the smallest allowed board still fits every ship (small-board-test.js), and the board-size propose/accept/decline flow (board-confirm-test.js).
 
 ## Tests
 
@@ -66,12 +53,12 @@ configurable board size feature.
 
 ## Features
 
-- **Real-time multiplayer** over Socket.IO, with reconnect handling.
-- **Configurable board size** (anywhere from 6x6 to 15x15) — either player
+- **Real-time multiplayer** over Socket.IO, with reconnect handling
+- **Configurable board size** (anywhere from 6x6 to 15x15) -> either player
   can propose a new size on the Fleet Setup screen. The other player gets
   an accept/decline prompt; the board only resizes if they confirm. This
   is locked once someone has placed their fleet.
-- **Leaderboard aggregated by player name** — if the same callsign plays
+- **Leaderboard aggregated by player name** -> if the same callsign plays
   multiple matches (e.g. requesting a rematch), their wins, losses, shots
   and accuracy accumulate into a single row instead of creating duplicate
   entries.
