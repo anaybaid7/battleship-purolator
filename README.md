@@ -4,7 +4,7 @@ A real-time, two-player Battleship game themed as a Purolator logistics
 "driver battle league." Players place a fleet of delivery vehicles on a
 grid and take turns firing at their opponent's board.
 
-## Running locally
+## Running locally (if not on Render)
 
 ```bash
 npm install
