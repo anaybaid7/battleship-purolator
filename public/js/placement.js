@@ -26,7 +26,27 @@ function isValid(cells) {
 }
 
 function selectShip(idx) {
-  if (state.placed.find((p) => p.name === state.ships[idx]?.name)) return;
+  const ship = state.ships[idx];
+  if (!ship) return;
+
+  // if already placed, unplace it so player can reposition
+  const placedIdx = state.placed.findIndex((p) => p.name === ship.name);
+  if (placedIdx !== -1) {
+    const placedShip = state.placed[placedIdx];
+    // clear cells on board
+    placedShip.cells.forEach((c) => {
+      state.myBoard[c] = null;
+      const cell = qs(`#place-grid-wrap .cell[data-i="${c}"]`);
+      if (cell) {
+        cell.classList.remove("has-ship");
+        cell.classList.add("placeable");
+      }
+    });
+    state.placed.splice(placedIdx, 1);
+    qs(`.ship-card[data-idx="${idx}"]`)?.classList.remove("placed");
+    document.getElementById("confirm-btn").disabled = true;
+  }
+
   state.selShip = idx;
   document.querySelectorAll(".ship-card").forEach((el, i) => el.classList.toggle("selected", i === idx));
 }
@@ -185,6 +205,7 @@ socket.on("board_dim_declined", ({ boardDim, declinedByName }) => {
 });
 
 function buildPlacement() {
+  stopTipRotator();
   document.getElementById("place-name").textContent = state.myName;
   document.getElementById("place-msg").textContent = "";
   document.getElementById("place-msg").style.color = "";
@@ -198,7 +219,7 @@ function buildPlacement() {
     const div = document.createElement("div");
     div.className = "ship-card";
     div.dataset.idx = i;
-    div.innerHTML = `<div class="ship-card-top"><span class="ship-icon">${ship.icon || "📦"}</span><span class="ship-name">${ship.name}</span><span class="ship-sz">${ship.size}</span></div><div class="ship-dots">${Array(ship.size).fill('<div class="ship-dot"></div>').join("")}</div><span class="placed-check">✓</span>`;
+    div.innerHTML = `<div class="ship-card-top"><span class="ship-icon" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--navy);background:var(--navy-bg);padding:2px 5px;border-radius:3px;letter-spacing:.04em">${ship.icon || "?"}</span><span class="ship-name">${ship.name}</span><span class="ship-sz">${ship.size}</span></div><div class="ship-dots">${Array(ship.size).fill('<div class="ship-dot"></div>').join("")}</div><span class="placed-check">✓</span>`;
     div.onclick = () => selectShip(i);
     list.appendChild(div);
   });

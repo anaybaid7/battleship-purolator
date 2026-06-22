@@ -5,11 +5,11 @@
 // apart.
 
 const SHIPS = [
-  { name: "Air Freighter", size: 5, icon: "✈️" },
-  { name: "Semi Truck", size: 4, icon: "🚛" },
-  { name: "Delivery Van", size: 3, icon: "🚐" },
-  { name: "Cargo Bike", size: 3, icon: "🚲" },
-  { name: "Scooter", size: 2, icon: "🛵" },
+  { name: "Air Freighter", size: 5, icon: "AF" },
+  { name: "Semi Truck", size: 4, icon: "ST" },
+  { name: "Delivery Van", size: 3, icon: "DV" },
+  { name: "Cargo Bike", size: 3, icon: "CB" },
+  { name: "Scooter", size: 2, icon: "SC" },
 ];
 
 const TOTAL_SHIP_CELLS = SHIPS.reduce((sum, ship) => sum + ship.size, 0); // 17

@@ -56,6 +56,17 @@ socket.on("room_closed", () => {
   }
 });
 
+// relative time helper — "3 min ago", "yesterday", etc.
+function relTime(ts) {
+  if (!ts) return null;
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60)     return "just now";
+  if (diff < 3600)   return Math.floor(diff / 60) + " min ago";
+  if (diff < 86400)  return Math.floor(diff / 3600) + "h ago";
+  if (diff < 172800) return "yesterday";
+  return Math.floor(diff / 86400) + " days ago";
+}
+
 // ── Driver Rankings (leaderboard) ────────────────────────────
 // Rows are aggregated server-side by player name, so a player who
 // plays multiple matches under the same callsign appears once with
@@ -70,6 +81,8 @@ socket.on("leaderboard_update", (rows) => {
     const acc = r.shots > 0 ? Math.round((r.hits / r.shots) * 100) : 0;
     const rankClass = i === 0 ? "g" : i === 1 ? "s" : i === 2 ? "b" : "";
     const medal = i === 0 ? "1" : i === 1 ? "2" : i === 2 ? "3" : (i + 1);
-    return `<div class="lb-row"><div class="lb-rank ${rankClass}">${medal}</div><div class="lb-av">${esc(r.name.slice(0, 2).toUpperCase())}</div><div class="lb-info"><div class="lb-name">${esc(r.name)}</div><div class="lb-sub">${acc}% acc · ${r.losses}L</div></div><div><div class="lb-wins">${r.wins}</div><div class="lb-wlabel">wins</div></div></div>`;
+    const lastSeen = r.lastSeen ? relTime(r.lastSeen) : null;
+    const subLine = lastSeen ? `${acc}% acc · ${r.losses}L · ${lastSeen}` : `${acc}% acc · ${r.losses}L`;
+    return `<div class="lb-row"><div class="lb-rank ${rankClass}">${medal}</div><div class="lb-av">${esc(r.name.slice(0, 2).toUpperCase())}</div><div class="lb-info"><div class="lb-name">${esc(r.name)}</div><div class="lb-sub">${subLine}</div></div><div><div class="lb-wins">${r.wins}</div><div class="lb-wlabel">wins</div></div></div>`;
   }).join("");
 });

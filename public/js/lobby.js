@@ -52,6 +52,7 @@ socket.on("room_created", ({ roomId, playerIndex, boardDim }) => {
   if (boardDim) state.boardDim = boardDim;
   document.getElementById("room-code").textContent = roomId;
   showScreen("waiting");
+  startTipRotator();
 });
 
 socket.on("error", (msg) => err("j-err", msg));

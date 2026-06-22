@@ -37,9 +37,11 @@ class Leaderboard {
         losses: 0,
         shots: 0,
         hits: 0,
+        lastSeen: new Date().toISOString(),
       });
     } else {
       this.entries.get(key).name = displayName;
+      this.entries.get(key).lastSeen = new Date().toISOString();
     }
     return key;
   }
