@@ -53,16 +53,10 @@ configurable board size feature.
 
 ## Features
 
-- **Real-time multiplayer** over Socket.IO, with reconnect handling
-- **Configurable board size** (anywhere from 6x6 to 15x15) -> either player
-  can propose a new size on the Fleet Setup screen. The other player gets
-  an accept/decline prompt; the board only resizes if they confirm. This
-  is locked once someone has placed their fleet.
-- **Leaderboard aggregated by player name** -> if the same callsign plays
-  multiple matches (e.g. requesting a rematch), their wins, losses, shots
-  and accuracy accumulate into a single row instead of creating duplicate
-  entries.
-- **Package-tracking sidebar** that logs every shot as a "delivery event"
-  using Canadian airport codes for grid coordinates.
-- Display settings for grid size, font scale, toasts, animations, and
-  ship health bars.
+The game supports real-time multiplayer gameplay using Socket.IO with reconnect handling. Players can customize the board size between 6x6 and 15x15 before the match begins. Either player can propose a different board size, but the change only happens after the other player accepts. Once a fleet has been placed, the board size becomes locked.
+
+The leaderboard tracks player performance across multiple matches by aggregating statistics under the player's name. Wins, losses, shots fired, and accuracy are maintained instead of creating duplicate records for repeat players.
+
+During gameplay, a package tracking sidebar records every attack as a delivery event using Canadian airport codes as grid references, matching the Purolator logistics theme.
+
+The application also includes display customization options such as grid sizing, font scaling, toast notifications, animations, and ship health indicators.
