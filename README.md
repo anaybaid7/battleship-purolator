@@ -51,6 +51,8 @@ Runs a set of in-process tests (no real network needed) covering a full
 game + rematch flow, leaderboard aggregation by player name, and the
 configurable board size feature.
 
+24/06 - recommited post tests
+
 ## Features
 
 The game supports real-time multiplayer gameplay using Socket.IO with reconnect handling. Players can customize the board size between 6x6 and 15x15 before the match begins. Either player can propose a different board size, but the change only happens after the other player accepts. Once a fleet has been placed, the board size becomes locked.
