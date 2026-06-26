@@ -148,7 +148,7 @@ socket.on("game_start", ({ turn }) => {
   showScreen("game");
   refreshTurn();
   setNav(2);
-  toast(state.myTurn ? "🔥 Your turn, fire first!" : "⏳ " + state.oppName + " fires first", "info", 3500);
+  toast(state.myTurn ? "Your turn, fire first!" : "⏳" + state.oppName + " fires first", "info", 3500);
 });
 
 function cellCoord(index) {
@@ -172,7 +172,7 @@ socket.on("shot_result", ({ index, result, firedBy, nextTurn }) => {
       state.hits++;
       state.sunkCt = countEnemySunk();
       document.getElementById("hud-sunk").textContent = state.sunkCt;
-      toast("💥 Hit at " + cellCoord(index), "hit");
+      toast("Hit at " + cellCoord(index), "hit");
     } else {
       toast("Miss at " + cellCoord(index), "miss", 2200);
     }
@@ -187,7 +187,7 @@ socket.on("shot_result", ({ index, result, firedBy, nextTurn }) => {
       if (opts.animations) cell.classList.add("fresh");
     }
     updateMyFleet();
-    if (result === "hit") toast("💣 " + state.oppName + " hit " + cellCoord(index), "hit", 2200);
+    if (result === "hit") toast(state.oppName + " hit " + cellCoord(index), "hit", 2200);
     else toast(state.oppName + " missed at " + cellCoord(index), "miss", 1800);
   }
 
