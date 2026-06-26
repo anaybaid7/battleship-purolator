@@ -113,7 +113,7 @@ function refreshHUD() {
 
 function refreshTurn() {
   const pill = document.getElementById("turn-pill");
-  document.getElementById("turn-text").textContent = state.myTurn ? "Your Turn — Fire!" : state.oppName + "'s Turn";
+  document.getElementById("turn-text").textContent = state.myTurn ? "Your Turn now, Fire!" : state.oppName + "'s Turn";
   pill.className = "turn-pill " + (state.myTurn ? "mine" : "theirs");
 }
 
