@@ -63,7 +63,7 @@ function freshRoom() {
   return { A, B, room };
 }
 
-// ── Test 1: accept flow ──
+// Test 1: accept flow
 {
   const { A, B, room } = freshRoom();
   console.log("initial boardDim:", room.boardDim);
@@ -82,11 +82,11 @@ function freshRoom() {
 
   const test1Pass = room.boardDim === 8 && room.boardSize === 64 && room.pendingBoardDim === null
     && A.lastOf("board_resized")?.boardDim === 8 && B.lastOf("board_resized")?.confirmedByName === "Jessica";
-  console.log(test1Pass ? "✅ Test 1 PASS (accept flow)\n" : "❌ Test 1 FAIL\n");
+  console.log(test1Pass ? "Test 1 PASS (accept flow)\n" : "Test 1 FAIL\n");
   if (!test1Pass) process.exit(1);
 }
 
-// ── Test 2: decline flow ──
+// Test 2: decline flow
 {
   const { A, B, room } = freshRoom();
   A.trigger("set_board_dim", { boardDim: 12 });
@@ -100,11 +100,11 @@ function freshRoom() {
 
   const test2Pass = room.boardDim === 10 && room.pendingBoardDim === null
     && A.lastOf("board_dim_declined")?.boardDim === 10;
-  console.log(test2Pass ? "✅ Test 2 PASS (decline flow)\n" : "❌ Test 2 FAIL\n");
+  console.log(test2Pass ? "Test 2 PASS (decline flow)\n" : "Test 2 FAIL\n");
   if (!test2Pass) process.exit(1);
 }
 
-// ── Test 3: placement blocked while a proposal is pending ──
+// Test 3: placement blocked while a proposal is pending
 {
   const { A, B, room } = freshRoom();
   const ships = B.lastOf("both_connected").ships;
@@ -123,7 +123,7 @@ function freshRoom() {
   console.log("player A ready after resolving + placing:", room.players[0].ready, "(expect true)");
 
   const pass3 = room.players[0].ready === true && room.boardSize === 81;
-  console.log(pass3 ? "✅ Test 3 PASS (placement blocked during pending proposal)\n" : "❌ Test 3 FAIL\n");
+  console.log(pass3 ? "Test 3 PASS (placement blocked during pending proposal)\n" : "Test 3 FAIL\n");
   if (!pass3) process.exit(1);
 }
 

@@ -1,230 +1,298 @@
-// ── Battle screen ─────────────────────────────────────────────
-// Handles the live game: building the two boards, firing, applying
-// shot results, fleet health bars, the package-tracking sidebar,
-// game-over overlay and rematch flow. All board math respects
-// state.boardDim so 8x8/9x9/10x10 matches behave the same way.
-
-function buildHealth(id) {
-  const el = document.getElementById(id);
-  el.innerHTML = state.ships.map((s) =>
-    `<div class="ship-health-row"><span class="sh-icon">${s.icon || "📦"}</span><div class="sh-bar"><div class="sh-fill" id="${id}-f-${s.name.replace(/\s/g, "_")}" style="width:100%"></div></div><span class="sh-name">${s.name}</span></div>`
-  ).join("");
-  if (!opts.healthBars) el.style.display = "none";
-}
-
-function updateHealth(id, name, hitCount, total, sunk) {
-  const fill = document.getElementById(`${id}-f-${name.replace(/\s/g, "_")}`);
-  if (!fill) return;
-  fill.style.width = Math.max(0, ((total - hitCount) / total) * 100) + "%";
-  if (sunk) fill.classList.add("sunk");
-}
-
-function updateMyFleet() {
-  state.placed.forEach((ship) => {
-    const sunk = ship.cells.every((c) => state.myBoard[c] === "hit");
-    const hitCt = ship.cells.filter((c) => state.myBoard[c] === "hit").length;
-    updateHealth("my-health", ship.name, hitCt, ship.cells.length, sunk);
-    if (sunk && !state.myShipSunk[ship.name]) {
-      state.myShipSunk[ship.name] = true;
-      const def = state.ships.find((s) => s.name === ship.name);
-      sunkBanner(ship.name, def?.icon || "💀");
-    }
-  });
-  const sunkCount = state.placed.filter((s) => s.cells.every((c) => state.myBoard[c] === "hit")).length;
-  document.getElementById("my-status").textContent = sunkCount === 0 ? "Intact" : `${sunkCount}/${state.placed.length} sunk`;
-}
-
-/** Count distinct enemy ships sunk by flood-filling contiguous "hit" cells on the enemy board. */
-function countEnemySunk() {
-  const dim = state.boardDim;
-  const visited = new Set();
-  let groups = 0;
-  for (let i = 0; i < dim * dim; i++) {
-    if (state.enemyBoard[i] !== "hit" || visited.has(i)) continue;
-    const stack = [i];
-    while (stack.length) {
-      const c = stack.pop();
-      if (visited.has(c)) continue;
-      visited.add(c);
-      const r = Math.floor(c / dim);
-      const col = c % dim;
-      [[r - 1, col], [r + 1, col], [r, col - 1], [r, col + 1]].forEach(([nr, nc]) => {
-        if (nr >= 0 && nr < dim && nc >= 0 && nc < dim) {
-          const ni = nr * dim + nc;
-          if (state.enemyBoard[ni] === "hit" && !visited.has(ni)) stack.push(ni);
-        }
-      });
-    }
-    groups++;
-  }
-  return groups;
-}
-
-function addTrack(idx, result, who) {
-  const code = CITIES[idx] || "---";
-  const city = CITY_NAMES[code] || code;
-  const el = document.getElementById("track-list");
-  const empty = el.querySelector(".lb-empty");
-  if (empty) empty.remove();
-
-  state.trackN++;
-  document.getElementById("track-badge").textContent = state.trackN;
-
-  const now = new Date();
-  const t = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
-  const div = document.createElement("div");
-  div.className = "track-item";
-  div.innerHTML = `<div class="track-row"><span class="track-pkg">PRL-${String(state.trackN).padStart(4, "0")}</span><span class="track-time">${t}</span></div><div class="track-status ${result}">${result === "hit" ? "● Route Intercepted" : "○ Delivery Clear"}</div><div class="track-loc">${esc(city)} · ${code} · ${esc(who)}</div>`;
-  el.insertBefore(div, el.firstChild);
-  while (el.children.length > 50) el.removeChild(el.lastChild);
-}
+// battle screen
 
 function buildGame() {
-  document.getElementById("hud-myname").textContent = state.myName;
-  document.getElementById("hud-oppname").textContent = state.oppName;
-  document.getElementById("my-av").textContent = state.myName.slice(0, 2).toUpperCase();
-  document.getElementById("opp-av").textContent = state.oppName.slice(0, 2).toUpperCase();
+  state.enemySunk = [];
+  state.mySunk = [];
+  state.over = false;
 
+  $("hud-myname").textContent = state.myName;
+  $("hud-oppname").textContent = state.oppName;
+
+  makeGrid("my-grid");
+  state.placed.forEach((p) => drawShip("my-grid", p.cells, "", p.name));
+
+  const theirs = makeGrid("enemy-grid");
+  theirs.forEach((el, i) => {
+    el.classList.add("can-fire");
+    el.addEventListener("click", () => fireAt(i));
+  });
+  hookAim("enemy-grid", "target-readout");
+
+  $("log").innerHTML = '<li class="empty">No shots yet</li>';
+  shotNo = 0;
+  $("shot-badge").textContent = "0";
   refreshHUD();
-  buildHealth("my-health");
-  buildHealth("enemy-health");
-
-  makeGrid("my-grid-wrap", (idx) => {
-    if (state.myBoard[idx] === "ship") {
-      const cell = qs(`#my-grid-wrap .cell[data-i="${idx}"]`);
-      if (cell) cell.classList.add("has-ship");
-    }
-  });
-
-  makeGrid("enemy-grid-wrap", (idx) => {
-    const cell = qs(`#enemy-grid-wrap .cell[data-i="${idx}"]`);
-    if (cell) {
-      cell.classList.add("enemy");
-      cell.addEventListener("click", () => fireAt(idx));
-    }
-  });
+  drawFleets();
 }
 
 function refreshHUD() {
-  document.getElementById("hud-acc").textContent = state.shots > 0 ? Math.round((state.hits / state.shots) * 100) + "%" : "—";
-  document.getElementById("hud-shots").textContent = state.shots;
-  document.getElementById("hud-sunk").textContent = state.sunkCt;
+  $("hud-shots").textContent = state.shots;
+  $("hud-acc").textContent = state.shots > 0 ? Math.round((state.hits / state.shots) * 100) + "%" : "-";
+  $("hud-sunk").textContent = state.enemySunk.length;
 }
 
-function refreshTurn() {
-  const pill = document.getElementById("turn-pill");
-  document.getElementById("turn-text").textContent = state.myTurn ? "Your Turn now, Fire!" : state.oppName + "'s Turn";
-  pill.className = "turn-pill " + (state.myTurn ? "mine" : "theirs");
+function drawFleets() {
+  // your own fleet shows damage per ship, theirs only shows what you've sunk
+  const list = (sunk, mine) => state.ships.map((s) => {
+    const down = sunk.includes(s.name);
+    let dmg = "";
+    if (mine) {
+      const p = state.placed.find((x) => x.name === s.name);
+      const hits = p ? p.cells.filter((c) => state.myBoard[c] === "hit").length : 0;
+      dmg = `<span class="dmg">${Array.from({ length: s.size }, (_, k) => `<i class="${k < hits ? "x" : ""}"></i>`).join("")}</span>`;
+    }
+    return `<li class="${down ? "down" : ""}" title="${esc(s.name)}${down ? " (sunk)" : ""}">` +
+      `<span class="mini" style="width:calc(${s.size} * 1em + ${s.size}px)">${shipSVG(s.size, false, s.name)}</span><span class="nm">${esc(s.name)}</span>${dmg}</li>`;
+  }).join("");
+  $("enemy-fleet").innerHTML = list(state.enemySunk, false);
+  $("my-fleet").innerHTML = list(state.mySunk, true);
+  const n = state.ships.length;
+  $("my-status").textContent = state.mySunk.length === 0 ? "intact" : `${state.mySunk.length} of ${n} sunk`;
 }
 
-function fireAt(idx) {
-  if (!state.myTurn) { toast("Wait for your turn!", "miss", 1500); return; }
-  if (state.enemyBoard[idx] === "hit" || state.enemyBoard[idx] === "miss") return;
-  socket.emit("fire", { index: idx });
+// outline the most recent shot on a board so you can see what just happened
+function markLast(gridId, index) {
+  document.querySelectorAll(`#${gridId} .cell.last`).forEach((c) => c.classList.remove("last"));
+  const el = cellAt(gridId, index);
+  if (el) el.classList.add("last");
+}
+
+function setStatus(sub) {
+  const mine = state.myTurn && !state.over;
+  $("turn-pill").className = "turn-pill " + (mine ? "mine" : "theirs");
+  document.querySelector("#game .hud").classList.toggle("mine", mine);
+  document.querySelector("#game .hud").classList.toggle("over", state.over);
+  $("turn-text").textContent = state.over ? "Game over" : mine ? "Your turn, fire!" : `${state.oppName}'s turn`;
+  if (sub !== undefined) $("status-sub").innerHTML = sub;
+  $("their-col").classList.toggle("off", !mine && !state.over);
+  $("their-col").classList.toggle("turn", mine);
+  $("my-col").classList.toggle("incoming", !mine && !state.over);
+  $("their-status").textContent = state.over ? "game over" : mine ? "click to fire" : "wait for your turn";
+}
+
+function fireAt(i) {
+  if (state.over) return;
+  if (!state.myTurn) {
+    setStatus("Wait for your turn.");
+    return;
+  }
+  if (state.enemyBoard[i]) return;
   state.myTurn = false;
-  refreshTurn();
+  socket.emit("fire", { index: i });
+}
+
+let shotNo = 0;
+function addLog(who, index, result, sunkName) {
+  const log = $("log");
+  const empty = log.querySelector(".empty");
+  if (empty) empty.remove();
+  shotNo++;
+  $("shot-badge").textContent = shotNo;
+  const li = document.createElement("li");
+  const res = sunkName ? `sank the ${esc(sunkName)}` : result;
+  li.innerHTML = `<span class="no">${shotNo}</span><i class="peg ${result}"></i><span class="who">${esc(who)}</span><span class="at">${coord(index)}</span><span class="res ${result}">${res}</span>`;
+  log.insertBefore(li, log.firstChild);
+}
+
+function flash(el) {
+  if (!el) return;
+  el.classList.remove("just");
+  void el.offsetWidth; // restart the animation
+  el.classList.add("just");
 }
 
 function requestRematch() {
   socket.emit("request_rematch");
-  document.getElementById("ov-note").textContent = "Rematch requested — waiting for rival…";
+  $("ov-note").textContent = `Asked ${state.oppName} for a rematch. Waiting for them to accept.`;
+  $("rematch-btn").disabled = true;
 }
 
-// ── Socket events ─────────────────────────────────────────────
-
 socket.on("both_connected", ({ names, ships, boardDim }) => {
-  state.boardDim = boardDim || DEFAULT_BOARD_DIM;
-  state.ships = ships;
   state.myName = names[state.pidx] || names[0];
   state.oppName = names[state.pidx === 0 ? 1 : 0] || names[1];
+  resetMatchState(ships, boardDim || DEFAULT_BOARD_DIM);
   buildPlacement();
   showScreen("placement");
   setNav(1);
 });
 
-socket.on("game_start", ({ turn }) => {
-  state.myTurn = turn === state.sid;
-  buildGame();
-  showScreen("game");
-  refreshTurn();
-  setNav(2);
-  toast(state.myTurn ? "Your turn, fire first!" : "⏳" + state.oppName + " fires first", "info", 3500);
-});
-
-function cellCoord(index) {
-  const dim = state.boardDim;
-  return COLS[index % dim] + (Math.floor(index / dim) + 1);
+// match clock in the HUD
+let clockTimer = null;
+function startClock() {
+  stopClock();
+  const t0 = Date.now();
+  $("hud-time").textContent = "0:00";
+  clockTimer = setInterval(() => {
+    const sec = Math.floor((Date.now() - t0) / 1000);
+    $("hud-time").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  }, 1000);
+}
+function stopClock() {
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = null;
 }
 
-socket.on("shot_result", ({ index, result, firedBy, nextTurn }) => {
+socket.on("game_start", ({ turn }) => {
+  state.myTurn = turn === state.sid;
+  startClock();
+  state.enemyBoard = Array(state.boardDim * state.boardDim).fill(null);
+  buildGame();
+  showScreen("game");
+  setNav(2);
+  setStatus(state.myTurn
+    ? `You fire first. Pick a square on ${esc(state.oppName)}'s board.`
+    : `${esc(state.oppName)} fires first.`);
+});
+
+socket.on("shot_result", ({ index, result, firedBy, nextTurn, sunk }) => {
   const mine = firedBy === state.sid;
+  const spot = coord(index);
+  let sub;
 
   if (mine) {
     state.enemyBoard[index] = result;
-    const cell = qs(`#enemy-grid-wrap .cell[data-i="${index}"]`);
-    if (cell) {
-      cell.classList.remove("enemy");
-      applyState(cell, result);
-      cell.classList.add("enemy");
-      if (opts.animations && result === "miss") cell.classList.add("fresh");
-    }
-    if (result === "hit") {
-      state.hits++;
-      state.sunkCt = countEnemySunk();
-      document.getElementById("hud-sunk").textContent = state.sunkCt;
-      toast("Hit at " + cellCoord(index), "hit");
-    } else {
-      toast("Miss at " + cellCoord(index), "miss", 2200);
-    }
     state.shots++;
-    refreshHUD();
+    state.myResults.push(result);
+    if (result === "hit") state.hits++;
+    const el = cellAt("enemy-grid", index);
+    el.classList.remove("can-fire");
+    el.classList.add(result);
+    flash(el);
+    markLast("enemy-grid", index);
+    if (result === "hit") { boom("enemy-grid", index); setBurning("enemy-grid", index); }
+    if (sunk) {
+      drawShip("enemy-grid", sunk.cells, "sunk", sunk.name);
+      setWreck("enemy-grid", sunk.cells);
+      state.enemySunk.push(sunk.name);
+      sub = `<b>You sank ${esc(state.oppName)}'s ${esc(sunk.name)}!</b>`;
+    } else {
+      sub = result === "hit" ? `Hit at ${spot}!` : `Miss at ${spot}.`;
+    }
   } else {
     state.myBoard[index] = result;
-    const cell = qs(`#my-grid-wrap .cell[data-i="${index}"]`);
-    if (cell) {
-      cell.classList.remove("has-ship");
-      applyState(cell, result);
-      if (opts.animations) cell.classList.add("fresh");
+    state.theirResults.push(result);
+    const el = cellAt("my-grid", index);
+    el.classList.add(result);
+    flash(el);
+    markLast("my-grid", index);
+    if (result === "hit") { boom("my-grid", index); setBurning("my-grid", index); }
+    const them = esc(state.oppName);
+    if (sunk) {
+      drawShip("my-grid", sunk.cells, "sunk", sunk.name);
+      setWreck("my-grid", sunk.cells);
+      state.mySunk.push(sunk.name);
+      sub = `<b>${them} sank your ${esc(sunk.name)}!</b>`;
+    } else {
+      sub = result === "hit" ? `${them} hit you at ${spot}!` : `${them} missed at ${spot}.`;
     }
-    updateMyFleet();
-    if (result === "hit") toast(state.oppName + " hit " + cellCoord(index), "hit", 2200);
-    else toast(state.oppName + " missed at " + cellCoord(index), "miss", 1800);
   }
 
-  addTrack(index, result, mine ? state.myName : state.oppName);
-  if (nextTurn) {
-    state.myTurn = nextTurn === state.sid;
-    refreshTurn();
-  }
+  addLog(mine ? "You" : state.oppName, index, result, sunk && sunk.name);
+  refreshHUD();
+  drawFleets();
+  if (nextTurn) state.myTurn = nextTurn === state.sid;
+  setStatus(sub);
 });
 
-socket.on("game_over", ({ winner, winnerName, stats }) => {
+socket.on("game_over", ({ winner, winnerName, fleets, stats }) => {
   const won = winner === state.sid;
-  document.getElementById("ov-icon").className = "ov-icon " + (won ? "win" : "lose");
-  document.getElementById("ov-icon").textContent = won ? "🏆" : "💀";
-  document.getElementById("ov-title").textContent = won ? "Delivered!" : "Route Failed";
-  document.getElementById("ov-title").className = "ov-title " + (won ? "win" : "lose");
-  document.getElementById("ov-sub").textContent = won
+  state.over = true;
+  state.myTurn = false;
+  document.querySelectorAll("#enemy-grid .cell").forEach((c) => c.classList.remove("can-fire"));
+
+  // show where their ships were that I never found
+  const theirs = fleets && Object.keys(fleets).find((id) => id !== state.sid);
+  if (theirs) {
+    fleets[theirs].forEach((s) => {
+      if (!state.enemySunk.includes(s.name)) drawShip("enemy-grid", s.cells, "ghost", s.name);
+    });
+  }
+
+  stopClock();
+  const mins = Math.floor(stats.duration / 60);
+  const secs = stats.duration % 60;
+  const time = `${mins}:${String(secs).padStart(2, "0")}`;
+
+  $("ov-title").className = "ov-title " + (won ? "win" : "lose");
+  $("ov-title").textContent = won ? "Delivered!" : "Route failed";
+  $("ov-sub").textContent = won
     ? `You intercepted all of ${state.oppName}'s vehicles.`
     : `${winnerName} destroyed your entire fleet.`;
-  document.getElementById("ov-stats").innerHTML = [
-    [stats.shots, "Shots"], [stats.accuracy + "%", "Accuracy"], [stats.duration + "s", "Duration"],
-  ].map(([val, label]) => `<div class="ov-stat"><div class="ov-stat-val ${won ? "red" : ""}">${val}</div><div class="ov-stat-label">${label}</div></div>`).join("");
-  setTimeout(() => document.getElementById("ov-gameover").classList.add("show"), 300);
+  $("ov-compare").innerHTML = matchReport();
+  $("ov-maps").innerHTML =
+    miniMap("Your shots", state.enemyBoard, theirs ? fleets[theirs] : [], true) +
+    miniMap(`${esc(state.oppName)}'s shots`, state.myBoard, state.placed, false);
+  $("ov-time").textContent = `Match time ${time}`;
+  $("ov-note").textContent = "";
+  $("rematch-btn").disabled = false;
+
+  refreshHUD();
+  setStatus("");
+  setTimeout(() => {
+    $("gameover").classList.add("show");
+    $("gameover").scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 600);
 });
 
 socket.on("rematch_requested", () => {
-  document.getElementById("ov-note").textContent = "Rival requested a rematch — click to accept!";
+  $("ov-note").textContent = `${state.oppName} wants a rematch. Hit Request rematch to start it.`;
 });
 
 socket.on("rematch_start", ({ ships, boardDim }) => {
   resetMatchState(ships, boardDim);
-  document.getElementById("track-badge").textContent = "0";
-  document.getElementById("track-list").innerHTML = '<div class="lb-empty" style="padding:14px;">No events yet</div>';
-  document.getElementById("ov-gameover").classList.remove("show");
+  $("gameover").classList.remove("show");
   buildPlacement();
   showScreen("placement");
   setNav(1);
 });
 
-socket.on("opponent_left", () => document.getElementById("ov-left").classList.add("show"));
+socket.on("opponent_left", () => {
+  stopClock();
+  if ($("lobby").classList.contains("active")) return;
+  $("gameover").classList.remove("show");
+  $("left").classList.add("show");
+});
+
+// ---- match report on the game over card ----
+
+function firstHit(results) {
+  const i = results.indexOf("hit");
+  return i === -1 ? "-" : "#" + (i + 1);
+}
+
+function bestStreak(results) {
+  let best = 0, run = 0;
+  results.forEach((r) => { run = r === "hit" ? run + 1 : 0; best = Math.max(best, run); });
+  return best;
+}
+
+function matchReport() {
+  const mine = state.myResults, theirs = state.theirResults;
+  const hits = (r) => r.filter((x) => x === "hit").length;
+  const acc = (r) => (r.length ? Math.round((hits(r) / r.length) * 100) + "%" : "-");
+  const rows = [
+    ["Shots", mine.length, theirs.length],
+    ["Hits", hits(mine), hits(theirs)],
+    ["Accuracy", acc(mine), acc(theirs)],
+    ["First hit", firstHit(mine), firstHit(theirs)],
+    ["Best hit streak", bestStreak(mine), bestStreak(theirs)],
+    ["Ships lost", state.mySunk.length, state.enemySunk.length],
+  ];
+  return `<thead><tr><th></th><th>You</th><th>${esc(state.oppName)}</th></tr></thead><tbody>` +
+    rows.map(([l, a, b]) => `<tr><td>${l}</td><td>${a}</td><td>${b}</td></tr>`).join("") + "</tbody>";
+}
+
+// small picture of a finished board. ships come from the fleet list so the
+// loser can see what they missed
+function miniMap(title, board, ships, enemy) {
+  const dim = state.boardDim;
+  const shipAt = new Set();
+  (ships || []).forEach((s) => s.cells.forEach((c) => shipAt.add(c)));
+  let cells = "";
+  for (let i = 0; i < dim * dim; i++) {
+    const v = board[i];
+    const cls = v === "hit" ? "h" : v === "miss" ? "m" : shipAt.has(i) ? (enemy ? "g" : "s") : "";
+    cells += `<i class="${cls}"></i>`;
+  }
+  return `<div class="mini-map"><div class="mini-title">${title}</div><div class="mini-grid" style="--d:${dim}">${cells}</div></div>`;
+}

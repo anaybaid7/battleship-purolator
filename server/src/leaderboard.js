@@ -1,15 +1,5 @@
-// ── Leaderboard ──────────────────────────────────────────────
-// Stats are aggregated by player NAME, not by socket id. A socket
-// id is only valid for a single connection, so a player who plays
-// twice in a row (e.g. wins, returns to the lobby, plays again
-// under the same callsign) would otherwise end up as two separate
-// rows. Keying by name merges those sessions into one running
-// total, which is the behaviour the in-office leaderboard is meant
-// to show.
-//
-// Names are matched case-insensitively and trimmed so "Falcon",
-// "falcon" and " Falcon " all roll up into the same entry. The most
-// recently used casing is kept as the display name.
+// leaderboard is keyed by name not socket id, so someone who plays a few
+// games under the same callsign shows up once. name match ignores case/spaces
 
 const { LEADERBOARD_SIZE } = require("./constants");
 
@@ -23,10 +13,9 @@ class Leaderboard {
     return name.trim().toLowerCase();
   }
 
-  /**
-   * Ensure an entry exists for this name and return its key.
-   * Updates the display name to whatever casing was used most recently.
-   */
+  // Ensure an entry exists for this name and return its key.
+
+  // Updates the display name to whatever casing was used most recently.
   ensure(name) {
     const key = Leaderboard.normalize(name);
     const displayName = name.trim();
@@ -63,15 +52,18 @@ class Leaderboard {
     this.entries.get(key).losses += 1;
   }
 
-  /**
-   * Top N entries sorted by wins, then by hits as a tiebreaker.
-   * Returns plain objects safe to send to clients.
-   */
+  // Top N entries sorted by wins, then by hits as a tiebreaker.
+
+  // Returns plain objects safe to send to clients.
   top(limit = LEADERBOARD_SIZE) {
     return Array.from(this.entries.values())
       .map((stats) => ({ ...stats }))
       .sort((a, b) => b.wins - a.wins || b.hits - a.hits)
       .slice(0, limit);
+  }
+
+  clear() {
+    this.entries.clear();
   }
 
   get size() {

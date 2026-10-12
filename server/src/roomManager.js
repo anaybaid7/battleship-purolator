@@ -1,9 +1,4 @@
-// ── Room management ──────────────────────────────────────────
-// Owns the in-memory room store and the helpers for creating,
-// looking up and tearing down rooms. Socket handlers call into
-// this module rather than touching the `rooms` map directly, so
-// the storage strategy (in-memory today) can change later without
-// rewriting the game logic.
+// in-memory room store
 
 const { ROOM_ID_LENGTH, ROOM_TIMEOUT_MS, BOARD_SIZE, DEFAULT_BOARD_DIM } = require("./constants");
 
@@ -13,7 +8,7 @@ class RoomManager {
     this.socketToRoom = new Map(); // socketId -> roomId
   }
 
-  /** Generate a unique, human-friendly room code (e.g. "K7QXM"). */
+  // Generate a unique, human-friendly room code (e.g. "K7QXM").
   generateRoomId() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
     let id = "";
@@ -50,7 +45,7 @@ class RoomManager {
     return this.socketToRoom.get(socketId);
   }
 
-  /** Create a new room with a single player and register the socket. */
+  // Create a new room with a single player and register the socket.
   createRoom(socketId, name, boardDim = DEFAULT_BOARD_DIM) {
     const roomId = this.generateRoomId();
     const boardSize = boardDim * boardDim;
@@ -63,6 +58,7 @@ class RoomManager {
       turn: null,
       state: "waiting",
       startedAt: null,
+      createdAt: Date.now(),
       cleanupTimer: null,
     };
     this.rooms.set(roomId, room);
@@ -70,7 +66,7 @@ class RoomManager {
     return room;
   }
 
-  /** Add a second player to an existing room. */
+  // Add a second player to an existing room.
   joinRoom(room, socketId, name) {
     room.players.push(this.createPlayer(socketId, name, room.boardSize));
     this.socketToRoom.set(socketId, room.id);
@@ -84,7 +80,7 @@ class RoomManager {
     return room.players.find((p) => p.id === socketId);
   }
 
-  /** (Re)start the idle-timeout for a room, deleting it after ROOM_TIMEOUT_MS. */
+  // (Re)start the idle-timeout for a room, deleting it after ROOM_TIMEOUT_MS.
   scheduleCleanup(roomId, onTimeout) {
     const room = this.rooms.get(roomId);
     if (!room) return;
@@ -92,7 +88,7 @@ class RoomManager {
     room.cleanupTimer = setTimeout(() => onTimeout(roomId, "timeout"), ROOM_TIMEOUT_MS);
   }
 
-  /** Remove a room and clear its bookkeeping. Does not notify sockets. */
+  // Remove a room and clear its bookkeeping. Does not notify sockets.
   delete(roomId) {
     const room = this.rooms.get(roomId);
     if (!room) return null;
@@ -106,7 +102,7 @@ class RoomManager {
     this.socketToRoom.delete(socketId);
   }
 
-  /** Reset both players' boards/ships for a rematch in place. */
+  // Reset both players' boards/ships for a rematch in place.
   resetForRematch(room) {
     room.players.forEach((p) => {
       p.board = Array(room.boardSize).fill(null);
@@ -122,7 +118,7 @@ class RoomManager {
     room.pendingBoardDim = null;
   }
 
-  /** Resize a room's board (only safe while no one has placed ships yet). */
+  // Resize a room's board (only safe while no one has placed ships yet).
   resizeBoard(room, boardDim) {
     room.boardDim = boardDim;
     room.boardSize = boardDim * boardDim;
@@ -131,6 +127,13 @@ class RoomManager {
       p.ships = [];
       p.ready = false;
     });
+  }
+
+  // Delete every room. Returns the deleted rooms so the caller can notify players.
+  clearAll() {
+    const all = Array.from(this.rooms.keys()).map((id) => this.delete(id)).filter(Boolean);
+    this.socketToRoom.clear();
+    return all;
   }
 
   get activeRoomCount() {

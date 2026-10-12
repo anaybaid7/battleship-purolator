@@ -1,12 +1,10 @@
-// ── Gameplay handlers ─────────────────────────────────────────
-// "place_ships", "fire" and "request_rematch" — the core
-// turn-by-turn game loop once both players are in a room.
+// place_ships, fire, request_rematch
 
 const { SHIPS, TOTAL_SHIP_CELLS } = require("../constants");
 const { isValidPlacement, isValidShotIndex } = require("../validation");
 
-function registerGameplayHandlers({ io, socket, rooms, leaderboard, broadcastLeaderboard, deleteRoom }) {
-  // ── PLACE SHIPS ──
+function registerGameplayHandlers({ io, socket, rooms, leaderboard, history, broadcastLeaderboard, broadcastLobby, deleteRoom }) {
+  // place ships
   socket.on("place_ships", ({ ships: placedShips }) => {
     const roomId = rooms.roomIdForSocket(socket.id);
     const room = rooms.get(roomId);
@@ -38,7 +36,7 @@ function registerGameplayHandlers({ io, socket, rooms, leaderboard, broadcastLea
     }
   });
 
-  // ── FIRE ──
+  // fire
   socket.on("fire", ({ index }) => {
     const roomId = rooms.roomIdForSocket(socket.id);
     const room = rooms.get(roomId);
@@ -64,8 +62,11 @@ function registerGameplayHandlers({ io, socket, rooms, leaderboard, broadcastLea
 
     rooms.scheduleCleanup(roomId, deleteRoom);
 
+    // if that hit finished off a ship, say which one so both sides can show it
+    const sunk = isHit ? sunkShipAt(opponent, index) : null;
+
     if (opponent.hits >= TOTAL_SHIP_CELLS) {
-      finishGame({ io, room, winner: self, loser: opponent, leaderboard, broadcastLeaderboard, index });
+      finishGame({ io, room, winner: self, loser: opponent, leaderboard, history, broadcastLeaderboard, broadcastLobby, index, sunk });
       return;
     }
 
@@ -75,10 +76,11 @@ function registerGameplayHandlers({ io, socket, rooms, leaderboard, broadcastLea
       result: isHit ? "hit" : "miss",
       firedBy: socket.id,
       nextTurn: room.turn,
+      sunk,
     });
   });
 
-  // ── REMATCH ──
+  // rematch
   socket.on("request_rematch", () => {
     const roomId = rooms.roomIdForSocket(socket.id);
     const room = rooms.get(roomId);
@@ -99,12 +101,16 @@ function registerGameplayHandlers({ io, socket, rooms, leaderboard, broadcastLea
   });
 }
 
-/**
- * Apply a winning shot: mark the room done, update the leaderboard
- * (aggregated by player name, so repeat sessions accumulate), and
- * notify both players of the result.
- */
-function finishGame({ io, room, winner, loser, leaderboard, broadcastLeaderboard, index }) {
+function sunkShipAt(player, index) {
+  const ship = player.ships.find((s) => s.cells.includes(index));
+  if (!ship) return null;
+  if (!ship.cells.every((c) => player.board[c] === "hit")) return null;
+  return { name: ship.name, cells: ship.cells };
+}
+
+// winning shot: mark the room done, update the leaderboard (by player name,
+// so repeat sessions add up) and tell both players
+function finishGame({ io, room, winner, loser, leaderboard, history, broadcastLeaderboard, broadcastLobby, index, sunk }) {
   room.state = "done";
   const duration = Math.round((Date.now() - room.startedAt) / 1000);
   const accuracy = winner.shotsFired > 0
@@ -113,11 +119,16 @@ function finishGame({ io, room, winner, loser, leaderboard, broadcastLeaderboard
 
   leaderboard.recordWin(winner.name);
   leaderboard.recordLoss(loser.name);
+  if (history) history.add({ winner: winner.name, loser: loser.name, shots: winner.shotsFired, duration, accuracy });
 
-  io.to(room.id).emit("shot_result", { index, result: "hit", firedBy: winner.id });
+  io.to(room.id).emit("shot_result", { index, result: "hit", firedBy: winner.id, sunk });
+  // send both fleets so the loser can see where the other ships were
+  const fleets = {};
+  room.players.forEach((p) => { fleets[p.id] = p.ships.map((s) => ({ name: s.name, cells: s.cells })); });
   io.to(room.id).emit("game_over", {
     winner: winner.id,
     winnerName: winner.name,
+    fleets,
     stats: {
       shots: winner.shotsFired,
       hits: winner.shotsHit,
@@ -126,6 +137,7 @@ function finishGame({ io, room, winner, loser, leaderboard, broadcastLeaderboard
     },
   });
   broadcastLeaderboard();
+  if (broadcastLobby) broadcastLobby();
 }
 
 module.exports = { registerGameplayHandlers };

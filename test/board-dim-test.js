@@ -86,6 +86,6 @@ shooter.trigger("fire", { index: targetCells[0] });
 const sr = shooter.received.filter(([e])=>e==="shot_result").pop()[1];
 console.log("in-bounds fire result:", sr.result, "(expect hit)");
 
-console.log("\n✅ 8x8 board room created, validated, and played correctly.");
+console.log("\n8x8 board room created, validated, and played correctly.");
 
 process.exit(0);

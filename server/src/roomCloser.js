@@ -1,8 +1,4 @@
-// ── Shared room teardown ─────────────────────────────────────
-// A single place that deletes a room AND notifies its players.
-// Both the idle-timeout cleanup and the disconnect grace-period
-// cleanup route through this so "room_closed" is always emitted
-// consistently, no matter what triggered the deletion.
+// delete a room and tell both players. used by the idle timeout and disconnect
 
 function createRoomCloser(io, rooms) {
   return function deleteRoom(roomId, reason) {

@@ -32,9 +32,9 @@ console.log("sanitizeBoardDim(20):", sanitizeBoardDim(20), "(expect", MAX_BOARD_
 console.log("sanitizeBoardDim(12):", sanitizeBoardDim(12), "(expect 12)");
 
 if (valid && sanitizeBoardDim(4) === MIN_BOARD_DIM && sanitizeBoardDim(20) === MAX_BOARD_DIM && sanitizeBoardDim(12) === 12) {
-  console.log("\n✅ PASS — min board size fits all ships; clamping works for out-of-range values.");
+  console.log("\nPASS, min board size fits all ships; clamping works for out-of-range values.");
   process.exit(0);
 } else {
-  console.log("\n❌ FAIL");
+  console.log("\nFAIL");
   process.exit(1);
 }

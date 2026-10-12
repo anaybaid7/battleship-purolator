@@ -1,12 +1,11 @@
-// ── Room lifecycle handlers ──────────────────────────────────
-// "create_room", "join_room" and "disconnect" — everything to do
-// with players entering, leaving and the room shutting down.
+// create/join room, board size handshake, disconnect
 
 const { sanitizeName, sanitizeRoomId, sanitizeBoardDim } = require("../validation");
 const { SHIPS, DISCONNECT_GRACE_MS } = require("../constants");
 
-function registerRoomLifecycleHandlers({ io, socket, rooms, leaderboard, deleteRoom }) {
-  // ── CREATE ROOM ──
+function registerRoomLifecycleHandlers({ io, socket, rooms, leaderboard, deleteRoom, broadcastLobby }) {
+  const lobbyChanged = () => { if (broadcastLobby) broadcastLobby(); };
+  // create room
   socket.on("create_room", ({ name, boardDim }) => {
     const cleanName = sanitizeName(name);
     if (!cleanName) return;
@@ -28,20 +27,21 @@ function registerRoomLifecycleHandlers({ io, socket, rooms, leaderboard, deleteR
     leaderboard.ensure(cleanName);
     rooms.scheduleCleanup(room.id, deleteRoom);
 
+    lobbyChanged();
     socket.emit("room_created", { roomId: room.id, playerIndex: 0, boardDim: room.boardDim });
     console.log(`Room ${room.id} created by "${cleanName}" (${room.boardDim}x${room.boardDim}). Active rooms: ${rooms.activeRoomCount}`);
   });
 
-  // ── JOIN ROOM ──
+  // join room
   socket.on("join_room", ({ roomId, name }) => {
     const cleanName = sanitizeName(name);
     const cleanRoomId = sanitizeRoomId(roomId);
     if (!cleanName || !cleanRoomId) return;
 
     const room = rooms.get(cleanRoomId);
-    if (!room) return socket.emit("error", "Room not found. Check your code and try again.");
-    if (room.players.length >= 2) return socket.emit("error", "This route is already full.");
-    if (room.state !== "waiting") return socket.emit("error", "Game already in progress.");
+    if (!room) return socket.emit("error", `There's no room ${cleanRoomId}. It may have closed, or the code has a typo.`);
+    if (room.players.length >= 2) return socket.emit("error", `Room ${cleanRoomId} already has two players. Ask for a new code.`);
+    if (room.state !== "waiting") return socket.emit("error", `Room ${cleanRoomId} is already in a game.`);
 
     // Leave old room if any.
     const existingRoomId = rooms.roomIdForSocket(socket.id);
@@ -60,15 +60,16 @@ function registerRoomLifecycleHandlers({ io, socket, rooms, leaderboard, deleteR
 
     room.state = "placing";
     const names = room.players.map((p) => p.name);
+    lobbyChanged();
     io.to(room.id).emit("both_connected", { names, ships: SHIPS, boardDim: room.boardDim });
     rooms.scheduleCleanup(room.id, deleteRoom);
     console.log(`Room ${room.id}: "${cleanName}" joined.`);
   });
 
-  // ── PROPOSE BOARD SIZE (placement stage only) ──
+  // PROPOSE BOARD SIZE (placement stage only)
   // Either player can suggest a new board size while both are still on the
   // placement screen and neither has placed ships yet. The change does NOT
-  // take effect immediately — the other player sees a confirm/decline prompt
+  // take effect immediately, the other player sees a confirm/decline prompt
   // and the resize only applies once they accept. This mirrors the kind of
   // "Player A proposes, Player B confirms" handshake we'd want for a future
   // Teams-based matchmaking flow (see docs/teams-integration.md).
@@ -95,7 +96,7 @@ function registerRoomLifecycleHandlers({ io, socket, rooms, leaderboard, deleteR
     });
   });
 
-  // ── RESPOND TO BOARD SIZE PROPOSAL ──
+  // respond to board size proposal
   // The opponent accepts or declines a pending board-size change. On accept,
   // both boards are resized and reset (cell indices change with dimensions).
   // On decline (or if the proposer leaves/disconnects), the room keeps its
@@ -122,7 +123,7 @@ function registerRoomLifecycleHandlers({ io, socket, rooms, leaderboard, deleteR
     }
   });
 
-  // ── DISCONNECT ──
+  // disconnect
   socket.on("disconnect", (reason) => {
     console.log(`[-] ${socket.id} disconnected (${reason}). Total: ${io.engine.clientsCount}`);
 

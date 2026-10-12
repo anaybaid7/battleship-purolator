@@ -1,8 +1,4 @@
-// ── Game constants ───────────────────────────────────────────
-// Shared values used across room management, gameplay logic and
-// the leaderboard. Keeping these in one place means the front-end
-// "ships" payload and the server-side win condition can never drift
-// apart.
+// shared game constants (ship list, board limits, timeouts)
 
 const SHIPS = [
   { name: "Air Freighter", size: 5, icon: "AF" },

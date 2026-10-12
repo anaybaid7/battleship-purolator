@@ -107,7 +107,7 @@ function main() {
   const lb1 = leaderboard.top();
   console.log("Leaderboard after game 1:", JSON.stringify(lb1));
 
-  // Rematch — same names, same sockets (simulating same browser session)
+  // Rematch, same names, same sockets (simulating same browser session)
   A.trigger("request_rematch");
   B.trigger("request_rematch");
   const rematch = A.lastOf("rematch_start");
@@ -128,13 +128,13 @@ function main() {
   console.log("Falcon aggregated hits:", falconRows[0]?.hits, "(expected 34, i.e. 17+17)");
 
   if (falconRows.length === 1 && falconRows[0].wins === 2 && falconRows[0].hits === 34) {
-    console.log("\n✅ PASS — leaderboard aggregates by username across rematches.");
+    console.log("\nPASS, leaderboard aggregates by username across rematches.");
   } else {
-    console.log("\n❌ FAIL");
+    console.log("\nFAIL");
     process.exit(1);
   }
 
-  // ── Edge case: different casing/whitespace for same name still aggregates ──
+  // Edge case: different casing/whitespace for same name still aggregates
   const C = new FakeSocket("C1"); io.register(C);
   registerRoomLifecycleHandlers({ ...ctxBase, socket: C });
   registerGameplayHandlers({ ...ctxBase, socket: C });
@@ -142,8 +142,8 @@ function main() {
   const lbCheck = leaderboard.top();
   const falconAfterCasing = lbCheck.filter(r => r.name.trim().toLowerCase() === "falcon");
   console.log("\nRows matching 'falcon' (any casing) after a new session as '  falcon ':", falconAfterCasing.length, "(expected 1)");
-  if (falconAfterCasing.length === 1) console.log("✅ PASS — case/whitespace variants aggregate too.");
-  else { console.log("❌ FAIL"); process.exit(1); }
+  if (falconAfterCasing.length === 1) console.log("PASS, case/whitespace variants aggregate too.");
+  else { console.log("FAIL"); process.exit(1); }
 }
 
 main();
