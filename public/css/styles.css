@@ -646,6 +646,8 @@ body { font-family: var(--font); font-variant-numeric: tabular-nums; }
 }
 .reset-link:hover { color: var(--red); text-decoration-color: var(--red); }
 .reset-link:disabled { color: var(--ink-3); cursor: wait; }
+#reset-btn { display: none; }
+#reset-btn.allowed { display: inline-block; }
 
 .btn { width: auto; height: 44px; padding: 0 20px; font-size: 15px; font-weight: 700; white-space: nowrap; flex: none; transition: background-color .12s; }
 .btn:active:not(:disabled) { transform: translateY(1px); }

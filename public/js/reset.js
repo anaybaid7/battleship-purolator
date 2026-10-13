@@ -2,6 +2,37 @@
 // idle and that wipes memory anyway. this pings /status until it's awake,
 // then POSTs /reset (closes all rooms, clears the leaderboard) and reloads
 
+// The button stays hidden unless the server says this browser may use it.
+// Opening the site once with ?key=<password> remembers the password here.
+// ?key=off forgets it (for a shared computer).
+const RESET_STORE = "dbl-reset-key";
+
+function resetKey() {
+  try { return localStorage.getItem(RESET_STORE) || ""; } catch (e) { return ""; }
+}
+
+(async function () {
+  const params = new URLSearchParams(location.search);
+  if (params.has("key")) {
+    const k = params.get("key").trim();
+    try {
+      if (!k || k === "off") localStorage.removeItem(RESET_STORE);
+      else localStorage.setItem(RESET_STORE, k);
+    } catch (e) {}
+    params.delete("key");
+    const rest = params.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+  }
+  try {
+    const res = await fetch("/reset/allowed", { cache: "no-store", headers: { "x-reset-key": resetKey() } });
+    const { allowed } = await res.json();
+    $("reset-btn").classList.toggle("allowed", allowed);
+    if (!allowed && resetKey()) {
+      try { localStorage.removeItem(RESET_STORE); } catch (e) {}
+    }
+  } catch (e) {}
+})();
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -47,7 +78,11 @@ async function resetGame() {
 
   resetMsg("Clearing all games and the standings...");
   try {
-    const res = await fetch("/reset", { method: "POST" });
+    const res = await fetch("/reset", { method: "POST", headers: { "x-reset-key": resetKey() } });
+    if (res.status === 403) {
+      resetMsg("This browser isn't allowed to reset the game anymore. Ask Anay for the new link.", true);
+      return;
+    }
     if (!res.ok) throw new Error(res.status);
   } catch (e) {
     resetMsg("The server is up but the reset didn't go through. Try again.", true);

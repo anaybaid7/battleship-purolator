@@ -3,6 +3,7 @@
 const express = require("express");
 const http = require("http");
 const path = require("path");
+const crypto = require("crypto");
 const { Server } = require("socket.io");
 
 const { RoomManager } = require("./src/roomManager");
@@ -91,9 +92,25 @@ app.get("/status", (_req, res) => {
   });
 });
 
+// Who gets the Reset button. Set RESET_KEY in Render > Environment and only
+// people who opened the site once with ?key=<that password> see it. With no
+// RESET_KEY set, everyone sees it like before.
+const RESET_KEY = process.env.RESET_KEY || "";
+function canReset(req) {
+  if (!RESET_KEY) return true;
+  const given = Buffer.from(String(req.get("x-reset-key") || ""));
+  const want = Buffer.from(RESET_KEY);
+  return given.length === want.length && crypto.timingSafeEqual(given, want);
+}
+
+app.get("/reset/allowed", (req, res) => {
+  res.set("Cache-Control", "no-store").json({ allowed: canReset(req) });
+});
+
 // Reset button in the top right of the page hits this. Ends every game in
 // progress, wipes the standings and tells every open tab to reload.
-app.post("/reset", (_req, res) => {
+app.post("/reset", (req, res) => {
+  if (!canReset(req)) return res.status(403).json({ ok: false });
   const closed = rooms.clearAll();
   leaderboard.clear();
   history.clear();
