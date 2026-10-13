@@ -75,8 +75,7 @@ socket.on("lobby_stats", (d) => {
   const n = (k, one, many) => `<b>${k}</b> ${k === 1 ? one : many}`;
   $("live-line").innerHTML =
     `Right now: ${n(d.online, "person", "people")} on the site, ${n(d.playing, "game", "games")} in progress` +
-    (d.waiting ? `, ${n(d.waiting, "room", "rooms")} waiting for a second player` : "") +
-    `. ${n(d.finished, "game", "games")} finished since the server last started.`;
+    (d.waiting ? `, ${n(d.waiting, "room", "rooms")} waiting for a second player` : "");
 
   // rooms anyone can walk into, oldest first
   const open = d.open.filter((r) => r.code !== state.roomId);
