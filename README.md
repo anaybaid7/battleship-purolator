@@ -2,7 +2,7 @@
 
 Two-player Battleship for Purolator events, with delivery vehicles instead of boats. You each hide five vehicles on a grid and take turns calling shots until one fleet is gone.
 
-Live at **https://battleship-purolator.onrender.com**
+Live at **[https://battleship-purolator.onrender.com](https://purolator-battleship.onrender.com/)**
 
 I built this during my co-op on the Network Engineering team. It stays up after my term ends so people can keep playing.
 
