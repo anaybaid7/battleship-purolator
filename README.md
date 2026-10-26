@@ -1,4 +1,4 @@
-# Purolator Battleshi
+# Purolator Battleship
 
 Two-player Battleship for Purolator events, with delivery vehicles instead of boats. You each hide five vehicles on a grid and take turns calling shots until one fleet is gone.
 
